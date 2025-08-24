@@ -79,9 +79,6 @@ async function ingestImages(connection: mysql.Connection, images: any, entityId:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE vote_average=VALUES(vote_average), vote_count=VALUES(vote_count);
         `;
-        // Using file_path as a pseudo-unique key for the insert, though it's not a real key in the DB.
-        // A more robust solution might involve a unique constraint on (entity_id, file_path).
-        // For now, this just prevents duplicate file paths for the same entity from being inserted again if the script is re-run.
         const imageValues = [entityType, entityId, imageType, image.file_path, image.aspect_ratio, image.height, image.width, image.iso_639_1, image.vote_average, image.vote_count];
         await safeQuery(connection, imageSql, imageValues);
     }
@@ -140,11 +137,23 @@ export async function POST(request: Request) {
 
                 // 3. Link Cast & Crew
                 for (const castMember of movie.credits?.cast ?? []) {
-                    const castSql = `INSERT IGNORE INTO movie_cast (movie_id, person_id, character_name, cast_order) VALUES (?, ?, ?, ?);`;
+                    const castSql = `
+                        INSERT INTO movie_cast (movie_id, person_id, character_name, cast_order) 
+                        VALUES (?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                        character_name = VALUES(character_name),
+                        cast_order = VALUES(cast_order);
+                    `;
                     await safeQuery(connection, castSql, [movie.id, castMember.id, castMember.character, castMember.order]);
                 }
                  for (const crewMember of movie.credits?.crew ?? []) {
-                    const crewSql = `INSERT IGNORE INTO movie_crew (movie_id, person_id, job, department) VALUES (?, ?, ?, ?);`;
+                    const crewSql = `
+                        INSERT INTO movie_crew (movie_id, person_id, job, department) 
+                        VALUES (?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                        job = VALUES(job),
+                        department = VALUES(department);
+                    `;
                     await safeQuery(connection, crewSql, [movie.id, crewMember.id, crewMember.job, crewMember.department]);
                 }
 
@@ -190,11 +199,23 @@ export async function POST(request: Request) {
 
                 // 3. Link TV Cast & Crew
                 for (const castMember of show.credits?.cast ?? []) {
-                    const castSql = `INSERT IGNORE INTO tv_show_cast (tv_show_id, person_id, character_name, cast_order) VALUES (?, ?, ?, ?);`;
+                    const castSql = `
+                        INSERT INTO tv_show_cast (tv_show_id, person_id, character_name, cast_order) 
+                        VALUES (?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                        character_name = VALUES(character_name),
+                        cast_order = VALUES(cast_order);
+                    `;
                     await safeQuery(connection, castSql, [show.id, castMember.id, castMember.character, castMember.order]);
                 }
                 for (const crewMember of show.credits?.crew ?? []) {
-                    const crewSql = `INSERT IGNORE INTO tv_show_crew (tv_show_id, person_id, job, department) VALUES (?, ?, ?, ?);`;
+                    const crewSql = `
+                        INSERT INTO tv_show_crew (tv_show_id, person_id, job, department) 
+                        VALUES (?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                        job = VALUES(job),
+                        department = VALUES(department);
+                    `;
                     await safeQuery(connection, crewSql, [show.id, crewMember.id, crewMember.job, crewMember.department]);
                 }
 
@@ -227,5 +248,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message || 'An internal server error occurred.' }, { status: 500 });
     }
 }
-
-    
