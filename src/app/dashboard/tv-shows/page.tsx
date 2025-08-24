@@ -20,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const TMDB_API_KEY = 'tmdb_api_key';
 const LOCAL_TV_DB_KEY = 'cinesync_tv_db';
+const LOCAL_PEOPLE_DB_KEY = 'cinesync_people_db';
 
 // Helper to update local storage for dashboard counts
 const updateLocalStorageCount = (key: string, newIds: number[]) => {
@@ -62,10 +63,11 @@ export default function TvShowsPage() {
     });
 
     const baseUrl = 'https://api.themoviedb.org/3';
+    const appendToResponse = 'credits,videos,images';
     let url = '';
 
     if (singleId) {
-        url = `${baseUrl}/tv/${singleId}?api_key=${apiKey}&language=en-US`;
+        url = `${baseUrl}/tv/${singleId}?api_key=${apiKey}&language=en-US&append_to_response=${appendToResponse}`;
     } else {
         url = `${baseUrl}/tv/${endpoint}?api_key=${apiKey}&language=en-US&page=1`;
     }
@@ -78,19 +80,22 @@ export default function TvShowsPage() {
         throw new Error(data.status_message || 'Failed to fetch data');
       }
 
-      let finalResults: any;
       let showsToProcess: any[] = [];
       
       if (singleId) {
-        finalResults = data;
         showsToProcess.push(data);
       } else if (data.results) {
-        const slicedResults = data.results.slice(0, parseInt(count));
-        finalResults = { ...data, results: slicedResults };
-        showsToProcess.push(...slicedResults);
+         const showsWithDetails = await Promise.all(
+          data.results.slice(0, parseInt(count)).map(async (show: any) => {
+            const detailUrl = `${baseUrl}/tv/${show.id}?api_key=${apiKey}&append_to_response=${appendToResponse}`;
+            const detailResponse = await fetch(detailUrl);
+            return detailResponse.json();
+          })
+        );
+        showsToProcess.push(...showsWithDetails);
       }
       
-      setResults(finalResults);
+      setResults({ results: showsToProcess });
 
       toast({
         title: 'Fetch Successful',
@@ -117,7 +122,9 @@ export default function TvShowsPage() {
 
       // Update local storage for dashboard counts
       const tvShowIds = showsToProcess.map(p => p.id);
+      const peopleIds = showsToProcess.flatMap(m => [...(m.credits?.cast ?? []), ...(m.credits?.crew ?? [])]).map(p => p.id);
       updateLocalStorageCount(LOCAL_TV_DB_KEY, tvShowIds);
+      updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, Array.from(new Set(peopleIds)));
 
     } catch (error: any) {
       toast({

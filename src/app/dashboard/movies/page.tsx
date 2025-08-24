@@ -64,10 +64,11 @@ export default function MoviesPage() {
     });
 
     const baseUrl = 'https://api.themoviedb.org/3';
+    const appendToResponse = 'credits,videos,images';
     let url = '';
 
     if (singleId) {
-        url = `${baseUrl}/movie/${singleId}?api_key=${apiKey}&language=en-US&append_to_response=credits`;
+        url = `${baseUrl}/movie/${singleId}?api_key=${apiKey}&language=en-US&append_to_response=${appendToResponse}`;
     } else {
         url = `${baseUrl}/movie/${endpoint}?api_key=${apiKey}&language=en-US&page=1`;
     }
@@ -80,26 +81,22 @@ export default function MoviesPage() {
         throw new Error(data.status_message || 'Failed to fetch data');
       }
       
-      let finalResults: any;
       let moviesToProcess: any[] = [];
 
       if (singleId) {
-        finalResults = data;
         moviesToProcess.push(data);
       } else if (data.results) {
-        const moviesWithCredits = await Promise.all(
+        const moviesWithDetails = await Promise.all(
           data.results.slice(0, parseInt(count)).map(async (movie: any) => {
-            const creditsUrl = `${baseUrl}/movie/${movie.id}/credits?api_key=${apiKey}`;
-            const creditsResponse = await fetch(creditsUrl);
-            const creditsData = await creditsResponse.json();
-            return { ...movie, credits: creditsData };
+            const detailUrl = `${baseUrl}/movie/${movie.id}?api_key=${apiKey}&append_to_response=${appendToResponse}`;
+            const detailResponse = await fetch(detailUrl);
+            return detailResponse.json();
           })
         );
-        finalResults = { ...data, results: moviesWithCredits };
-        moviesToProcess.push(...moviesWithCredits);
+        moviesToProcess.push(...moviesWithDetails);
       }
       
-      setResults(finalResults);
+      setResults({ results: moviesToProcess });
       
       toast({
         title: 'Fetch Successful',
@@ -128,7 +125,7 @@ export default function MoviesPage() {
       const movieIds = moviesToProcess.map(m => m.id);
       const peopleIds = moviesToProcess.flatMap(m => [...(m.credits?.cast ?? []), ...(m.credits?.crew ?? [])]).map(p => p.id);
       updateLocalStorageCount(LOCAL_MOVIE_DB_KEY, movieIds);
-      updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, peopleIds);
+      updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, Array.from(new Set(peopleIds)));
 
 
     } catch (error: any) {

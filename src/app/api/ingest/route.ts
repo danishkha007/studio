@@ -26,6 +26,35 @@ async function safeQuery(connection: mysql.Connection, sql: string, values: any[
     }
 }
 
+async function ingestPeople(connection: mysql.Connection, people: any[]) {
+    let insertedCount = 0;
+    let updatedCount = 0;
+
+    for (const person of people) {
+        const personSql = `
+            INSERT INTO people (id, name, gender, popularity, profile_path, adult, known_for_department)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+            name = VALUES(name),
+            popularity = VALUES(popularity),
+            profile_path = VALUES(profile_path),
+            adult = VALUES(adult),
+            known_for_department = VALUES(known_for_department);
+        `;
+        // Use known_for_department from the main person object, fallback to department from credits
+        const department = person.known_for_department || person.department;
+        const personValues = [person.id, person.name, person.gender, person.popularity, person.profile_path, person.adult, department];
+        const result: any = await safeQuery(connection, personSql, personValues);
+        if (result?.affectedRows) {
+            // MySQL returns 1 for INSERT, 2 for UPDATE on ON DUPLICATE KEY UPDATE
+            if (result.affectedRows === 1) insertedCount++;
+            if (result.affectedRows === 2) updatedCount++;
+        }
+    }
+    return { insertedCount, updatedCount };
+}
+
+
 export async function POST(request: Request) {
     let connection: mysql.Connection | null = null;
     try {
@@ -39,30 +68,16 @@ export async function POST(request: Request) {
 
         let insertedCount = 0;
         let updatedCount = 0;
+        let relatedInsertedCount = 0;
+        let relatedUpdatedCount = 0;
 
         if (type === 'movies') {
             for (const movie of data) {
-                // 1. Ingest People (Cast & Crew) first
+                 // 1. Ingest People (Cast & Crew) first
                 const people = [...(movie.credits?.cast ?? []), ...(movie.credits?.crew ?? [])];
-                for (const person of people) {
-                    const personSql = `
-                        INSERT INTO people (id, name, gender, popularity, profile_path, adult, known_for_department)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE
-                        name = VALUES(name),
-                        popularity = VALUES(popularity),
-                        profile_path = VALUES(profile_path),
-                        adult = VALUES(adult),
-                        known_for_department = VALUES(known_for_department);
-                    `;
-                    const personValues = [person.id, person.name, person.gender, person.popularity, person.profile_path, person.adult, person.known_for_department || person.department];
-                    const result: any = await safeQuery(connection, personSql, personValues);
-                    if (result?.affectedRows) {
-                       // MySQL returns 1 for INSERT, 2 for UPDATE on ON DUPLICATE KEY UPDATE
-                       if (result.affectedRows === 1) insertedCount++;
-                       if (result.affectedRows === 2) updatedCount++;
-                    }
-                }
+                const peopleResult = await ingestPeople(connection, people);
+                relatedInsertedCount += peopleResult.insertedCount;
+                relatedUpdatedCount += peopleResult.updatedCount;
 
                 // 2. Ingest Movie
                 const movieSql = `
@@ -97,6 +112,13 @@ export async function POST(request: Request) {
             }
         } else if (type === 'tv_shows') {
             for (const show of data) {
+                // 1. Ingest People from TV show credits
+                const people = [...(show.credits?.cast ?? []), ...(show.credits?.crew ?? [])];
+                const peopleResult = await ingestPeople(connection, people);
+                relatedInsertedCount += peopleResult.insertedCount;
+                relatedUpdatedCount += peopleResult.updatedCount;
+
+                // 2. Ingest TV Show
                  const sql = `
                     INSERT INTO tv_shows (id, name, overview, first_air_date, popularity, vote_average, vote_count, poster_path, backdrop_path)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -116,39 +138,34 @@ export async function POST(request: Request) {
                     if (result.affectedRows === 1) insertedCount++;
                     if (result.affectedRows === 2) updatedCount++;
                 }
-            }
-        } else if (type === 'people') {
-             for (const person of data) {
-                const sql = `
-                    INSERT INTO people (id, name, biography, birthday, deathday, gender, place_of_birth, popularity, profile_path, adult, known_for_department)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE
-                    name = VALUES(name),
-                    biography = VALUES(biography),
-                    birthday = VALUES(birthday),
-                    deathday = VALUES(deathday),
-                    gender = VALUES(gender),
-                    place_of_birth = VALUES(place_of_birth),
-                    popularity = VALUES(popularity),
-                    profile_path = VALUES(profile_path),
-                    adult = VALUES(adult),
-                    known_for_department = VALUES(known_for_department);
-                `;
-                const values = [person.id, person.name, person.biography, person.birthday, person.deathday, person.gender, person.place_of_birth, person.popularity, person.profile_path, person.adult, person.known_for_department];
-                const result: any = await safeQuery(connection, sql, values);
-                if (result?.affectedRows > 0) {
-                    if (result.affectedRows === 1) insertedCount++;
-                    if (result.affectedRows === 2) updatedCount++;
+
+                // 3. Link TV Cast & Crew
+                for (const castMember of show.credits?.cast ?? []) {
+                    const castSql = `INSERT IGNORE INTO tv_show_cast (tv_show_id, person_id, character_name, cast_order) VALUES (?, ?, ?, ?);`;
+                    await safeQuery(connection, castSql, [show.id, castMember.id, castMember.character, castMember.order]);
+                }
+                for (const crewMember of show.credits?.crew ?? []) {
+                    const crewSql = `INSERT IGNORE INTO tv_show_crew (tv_show_id, person_id, job, department) VALUES (?, ?, ?, ?);`;
+                    await safeQuery(connection, crewSql, [show.id, crewMember.id, crewMember.job, crewMember.department]);
                 }
             }
+        } else if (type === 'people') {
+             const peopleResult = await ingestPeople(connection, data);
+             insertedCount = peopleResult.insertedCount;
+             updatedCount = peopleResult.updatedCount;
         } else {
             return NextResponse.json({ error: 'Invalid ingestion type' }, { status: 400 });
         }
 
         await connection.end();
+        
+        let message = `Ingestion successful for ${type}. Inserted: ${insertedCount}, Updated: ${updatedCount}.`;
+        if(relatedInsertedCount > 0 || relatedUpdatedCount > 0) {
+            message += ` Related People Records - Inserted: ${relatedInsertedCount}, Updated: ${relatedUpdatedCount}.`
+        }
 
         return NextResponse.json({ 
-            message: `Ingestion successful. Inserted: ${insertedCount}, Updated: ${updatedCount}` 
+            message: message
         });
 
     } catch (error: any) {
