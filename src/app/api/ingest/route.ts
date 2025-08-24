@@ -8,11 +8,11 @@ import mysql from 'mysql2/promise';
 // and add your credentials there.
 // See `.env.local.example` for a template.
 const dbConfig = {
-    host: process.env.MYSQL_HOST,
-    port: Number(process.env.MYSQL_PORT),
-    user: process.env.MYSQL_USER,
-    password: process.env.MYSQL_PASSWORD,
-    database: process.env.MYSQL_DATABASE
+    host: process.env.MYSQL_HOST || 'localhost',
+    port: Number(process.env.MYSQL_PORT) || 3306,
+    user: process.env.MYSQL_USER || 'admin',
+    password: process.env.MYSQL_PASSWORD || 'admin',
+    database: process.env.MYSQL_DATABASE || 'tmdb_movies_db'
 };
 
 async function safeQuery(connection: mysql.Connection, sql: string, values: any[]) {
