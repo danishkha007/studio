@@ -16,7 +16,7 @@ export async function GET(request: Request) {
             LIMIT 20
         `);
 
-        return NextResponse.json({ movies });
+        return NextResponse.json({ data: movies });
 
     } catch (error: any) {
         console.error('API Error:', error);

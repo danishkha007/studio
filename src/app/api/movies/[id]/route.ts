@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
             crew
         };
 
-        return NextResponse.json(response);
+        return NextResponse.json({ data: response });
 
     } catch (error: any) {
         console.error(`API Error fetching movie ${params.id}:`, error);
