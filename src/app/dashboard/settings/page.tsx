@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = React.useState('');
   const [savedApiKey, setSavedApiKey] = React.useState('');
   const [mysqlConfig, setMysqlConfig] = React.useState<MySQLConfig>({});
-  const [savedMysqlConfig, setSavedMysqlConfig] = React.useState<MySQLConfig | null>(null);
+  const [savedMysqlConfig, setSavedMysqlConfig] = React.useState<MySQLConfig>({});
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);

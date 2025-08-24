@@ -22,9 +22,9 @@ const getCountFromStorage = (key: string): number => {
 };
 
 export default function DashboardPage() {
-    const [movieCount, setMovieCount] = React.useState<number | null>(null);
-    const [tvShowCount, setTvShowCount] = React.useState<number | null>(null);
-    const [peopleCount, setPeopleCount] = React.useState<number | null>(null);
+    const [movieCount, setMovieCount] = React.useState(0);
+    const [tvShowCount, setTvShowCount] = React.useState(0);
+    const [peopleCount, setPeopleCount] = React.useState(0);
     const [isMounted, setIsMounted] = React.useState(false);
 
     React.useEffect(() => {
@@ -34,14 +34,14 @@ export default function DashboardPage() {
         setPeopleCount(getCountFromStorage(LOCAL_PEOPLE_DB_KEY));
     }, []);
 
-    const DataCard = ({ title, icon: Icon, value, loading }: { title: string; icon: React.ElementType; value: number | null, loading: boolean }) => (
+    const DataCard = ({ title, icon: Icon, value, loading }: { title: string; icon: React.ElementType; value: number, loading: boolean }) => (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{title}</CardTitle>
             <Icon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {loading ? <Skeleton className="h-7 w-24" /> : <div className="text-2xl font-bold">{value?.toLocaleString() ?? 0}</div>}
+            {loading ? <Skeleton className="h-7 w-24" /> : <div className="text-2xl font-bold">{value.toLocaleString() ?? 0}</div>}
             <p className="text-xs text-muted-foreground">
               Total records in local storage
             </p>

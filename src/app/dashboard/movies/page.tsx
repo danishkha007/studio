@@ -35,7 +35,7 @@ const updateLocalStorageCount = (key: string, newIds: number[]) => {
 
 export default function MoviesPage() {
   const { toast } = useToast();
-  const [apiKey, setApiKey] = React.useState<string | null>(null);
+  const [apiKey, setApiKey] = React.useState('');
   const [endpoint, setEndpoint] = React.useState('popular');
   const [count, setCount] = React.useState('20');
   const [singleId, setSingleId] = React.useState('');
@@ -44,10 +44,14 @@ export default function MoviesPage() {
   const [movies, setMovies] = React.useState<any[]>([]);
   const [isLoadingMovies, setIsLoadingMovies] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [isMounted, setIsMounted] = React.useState(false);
 
   React.useEffect(() => {
+    setIsMounted(true);
     const storedKey = localStorage.getItem(TMDB_API_KEY);
-    setApiKey(storedKey);
+    if(storedKey) {
+        setApiKey(storedKey);
+    }
 
     const fetchMovies = async () => {
         setIsLoadingMovies(true);
@@ -167,6 +171,10 @@ export default function MoviesPage() {
     }
   };
   
+  if (!isMounted) {
+    return null;
+  }
+
   const filteredMovies = movies.filter(movie => movie.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
@@ -210,7 +218,7 @@ export default function MoviesPage() {
             <Input id="single-id" placeholder="Enter movie ID" value={singleId} onChange={e => setSingleId(e.target.value)} disabled={isFetching}/>
           </div>
           <div className="flex items-end">
-            <Button onClick={handleFetch} className="w-full" disabled={isFetching}>
+            <Button onClick={handleFetch} className="w-full" disabled={isFetching || !apiKey}>
               {isFetching ? <Loader2 className="mr-2 animate-spin" /> : <Download className="mr-2" />}
               Fetch & Ingest
             </Button>

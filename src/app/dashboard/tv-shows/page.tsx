@@ -35,7 +35,7 @@ const updateLocalStorageCount = (key: string, newIds: number[]) => {
 
 export default function TvShowsPage() {
   const { toast } = useToast();
-  const [apiKey, setApiKey] = React.useState<string | null>(null);
+  const [apiKey, setApiKey] = React.useState('');
   const [endpoint, setEndpoint] = React.useState('popular');
   const [count, setCount] = React.useState('20');
   const [singleId, setSingleId] = React.useState('');
@@ -44,10 +44,14 @@ export default function TvShowsPage() {
   const [tvShows, setTvShows] = React.useState<any[]>([]);
   const [isLoadingShows, setIsLoadingShows] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [isMounted, setIsMounted] = React.useState(false);
 
   React.useEffect(() => {
+    setIsMounted(true);
     const storedKey = localStorage.getItem(TMDB_API_KEY);
-    setApiKey(storedKey);
+    if (storedKey) {
+        setApiKey(storedKey);
+    }
 
     const fetchTvShows = async () => {
         setIsLoadingShows(true);
@@ -167,6 +171,10 @@ export default function TvShowsPage() {
     }
   };
 
+  if (!isMounted) {
+      return null;
+  }
+
   const filteredShows = tvShows.filter(show => show.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
@@ -210,7 +218,7 @@ export default function TvShowsPage() {
             <Input id="single-id" placeholder="Enter TV show ID" value={singleId} onChange={e => setSingleId(e.target.value)} disabled={isFetching}/>
           </div>
           <div className="flex items-end">
-            <Button onClick={handleFetch} className="w-full" disabled={isFetching}>
+            <Button onClick={handleFetch} className="w-full" disabled={isFetching || !apiKey}>
               {isFetching ? <Loader2 className="mr-2 animate-spin" /> : <Download className="mr-2" />}
               Fetch & Ingest
             </Button>

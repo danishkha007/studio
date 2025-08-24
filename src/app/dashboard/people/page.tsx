@@ -32,16 +32,20 @@ const updateLocalStorageCount = (key: string, newIds: number[]) => {
 
 export default function PeoplePage() {
   const { toast } = useToast();
-  const [apiKey, setApiKey] = React.useState<string | null>(null);
+  const [apiKey, setApiKey] = React.useState('');
   const [endpoint, setEndpoint] = React.useState('popular');
   const [count, setCount] = React.useState('20');
   const [singleId, setSingleId] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [results, setResults] = React.useState<any | null>(null);
+  const [isMounted, setIsMounted] = React.useState(false);
 
   React.useEffect(() => {
+    setIsMounted(true);
     const storedKey = localStorage.getItem(TMDB_API_KEY);
-    setApiKey(storedKey);
+    if (storedKey) {
+        setApiKey(storedKey);
+    }
   }, []);
 
   const handleFetch = async () => {
@@ -130,6 +134,10 @@ export default function PeoplePage() {
     }
   };
 
+  if (!isMounted) {
+      return null;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -168,7 +176,7 @@ export default function PeoplePage() {
             <Input id="single-id" placeholder="Enter person ID" value={singleId} onChange={e => setSingleId(e.target.value)} disabled={isLoading}/>
           </div>
           <div className="flex items-end">
-            <Button onClick={handleFetch} className="w-full" disabled={isLoading}>
+            <Button onClick={handleFetch} className="w-full" disabled={isLoading || !apiKey}>
               {isLoading ? <Loader2 className="mr-2 animate-spin" /> : <Download className="mr-2" />}
               Fetch & Ingest
             </Button>
