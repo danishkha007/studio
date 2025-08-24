@@ -18,8 +18,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+const TMDB_API_KEY = 'tmdb_api_key';
+const LOCAL_PEOPLE_DB_KEY = 'cinesync_people_db';
 
-const LOCAL_STORAGE_KEY = 'tmdb_api_key';
+const getStoredPeopleIds = (): number[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(LOCAL_PEOPLE_DB_KEY);
+    return stored ? JSON.parse(stored) : [];
+};
+
+const addPersonIdToStorage = (id: number) => {
+    if (typeof window === 'undefined') return;
+    const ids = getStoredPeopleIds();
+    if (!ids.includes(id)) {
+        ids.push(id);
+        localStorage.setItem(LOCAL_PEOPLE_DB_KEY, JSON.stringify(ids));
+    }
+};
+
 
 export default function PeoplePage() {
   const { toast } = useToast();
@@ -31,7 +47,7 @@ export default function PeoplePage() {
   const [results, setResults] = React.useState<any | null>(null);
 
   React.useEffect(() => {
-    const storedKey = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const storedKey = localStorage.getItem(TMDB_API_KEY);
     setApiKey(storedKey);
   }, []);
 
@@ -70,8 +86,15 @@ export default function PeoplePage() {
       }
 
       let finalResults = data;
-      if (!singleId && data.results) {
-        finalResults = { ...data, results: data.results.slice(0, parseInt(count)) };
+      let peopleToProcess: any[] = [];
+      
+      if (singleId) {
+        finalResults = data;
+        peopleToProcess.push(data);
+      } else if (data.results) {
+        const slicedResults = data.results.slice(0, parseInt(count));
+        finalResults = { ...data, results: slicedResults };
+        peopleToProcess.push(...slicedResults);
       }
       
       setResults(finalResults);
@@ -82,10 +105,15 @@ export default function PeoplePage() {
       });
       
       setTimeout(() => {
-        toast({
-            title: 'Ingesting Data',
-            description: 'Simulating ingestion into MySQL database.'
-        })
+        const storedIds = getStoredPeopleIds();
+        peopleToProcess.forEach((person) => {
+            const doesExist = storedIds.includes(person.id);
+            toast({
+                title: doesExist ? 'Updating Existing Record' : 'Ingesting New Record',
+                description: `Simulating ingestion for person: ${person.name} (ID: ${person.id})`,
+            });
+            addPersonIdToStorage(person.id);
+        });
     }, 1500);
 
     } catch (error: any) {

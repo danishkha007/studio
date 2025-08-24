@@ -18,7 +18,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-const LOCAL_STORAGE_KEY = 'tmdb_api_key';
+const TMDB_API_KEY = 'tmdb_api_key';
+const LOCAL_TV_DB_KEY = 'cinesync_tv_db';
+
+const getStoredTvShowIds = (): number[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(LOCAL_TV_DB_KEY);
+    return stored ? JSON.parse(stored) : [];
+};
+
+const addTvShowIdToStorage = (id: number) => {
+    if (typeof window === 'undefined') return;
+    const ids = getStoredTvShowIds();
+    if (!ids.includes(id)) {
+        ids.push(id);
+        localStorage.setItem(LOCAL_TV_DB_KEY, JSON.stringify(ids));
+    }
+};
+
 
 export default function TvShowsPage() {
   const { toast } = useToast();
@@ -30,7 +47,7 @@ export default function TvShowsPage() {
   const [results, setResults] = React.useState<any | null>(null);
 
   React.useEffect(() => {
-    const storedKey = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const storedKey = localStorage.getItem(TMDB_API_KEY);
     setApiKey(storedKey);
   }, []);
 
@@ -69,8 +86,15 @@ export default function TvShowsPage() {
       }
 
       let finalResults = data;
-      if (!singleId && data.results) {
-        finalResults = { ...data, results: data.results.slice(0, parseInt(count)) };
+      let showsToProcess: any[] = [];
+      
+      if (singleId) {
+        finalResults = data;
+        showsToProcess.push(data);
+      } else if (data.results) {
+        const slicedResults = data.results.slice(0, parseInt(count));
+        finalResults = { ...data, results: slicedResults };
+        showsToProcess.push(...slicedResults);
       }
       
       setResults(finalResults);
@@ -81,10 +105,15 @@ export default function TvShowsPage() {
       });
 
       setTimeout(() => {
-        toast({
-            title: 'Ingesting Data',
-            description: 'Simulating ingestion into MySQL database.'
-        })
+        const storedIds = getStoredTvShowIds();
+        showsToProcess.forEach((show) => {
+            const doesExist = storedIds.includes(show.id);
+            toast({
+                title: doesExist ? 'Updating Existing Record' : 'Ingesting New Record',
+                description: `Simulating ingestion for TV Show: ${show.name} (ID: ${show.id})`,
+            });
+            addTvShowIdToStorage(show.id);
+        });
     }, 1500);
 
     } catch (error: any) {

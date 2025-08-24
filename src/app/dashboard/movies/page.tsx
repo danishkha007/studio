@@ -18,7 +18,23 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-const LOCAL_STORAGE_KEY = 'tmdb_api_key';
+const TMDB_API_KEY = 'tmdb_api_key';
+const LOCAL_MOVIE_DB_KEY = 'cinesync_movie_db';
+
+const getStoredMovieIds = (): number[] => {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(LOCAL_MOVIE_DB_KEY);
+    return stored ? JSON.parse(stored) : [];
+};
+
+const addMovieIdToStorage = (id: number) => {
+    if (typeof window === 'undefined') return;
+    const ids = getStoredMovieIds();
+    if (!ids.includes(id)) {
+        ids.push(id);
+        localStorage.setItem(LOCAL_MOVIE_DB_KEY, JSON.stringify(ids));
+    }
+};
 
 export default function MoviesPage() {
   const { toast } = useToast();
@@ -30,7 +46,7 @@ export default function MoviesPage() {
   const [results, setResults] = React.useState<any | null>(null);
 
   React.useEffect(() => {
-    const storedKey = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const storedKey = localStorage.getItem(TMDB_API_KEY);
     setApiKey(storedKey);
   }, []);
 
@@ -69,8 +85,15 @@ export default function MoviesPage() {
       }
       
       let finalResults = data;
-      if (!singleId && data.results) {
-        finalResults = { ...data, results: data.results.slice(0, parseInt(count)) };
+      let moviesToProcess: any[] = [];
+
+      if (singleId) {
+        finalResults = data;
+        moviesToProcess.push(data);
+      } else if (data.results) {
+        const slicedResults = data.results.slice(0, parseInt(count));
+        finalResults = { ...data, results: slicedResults };
+        moviesToProcess.push(...slicedResults);
       }
       
       setResults(finalResults);
@@ -81,10 +104,15 @@ export default function MoviesPage() {
       });
 
       setTimeout(() => {
-        toast({
-            title: 'Ingesting Data',
-            description: 'Simulating ingestion into MySQL database.'
-        })
+        const storedIds = getStoredMovieIds();
+        moviesToProcess.forEach((movie) => {
+            const doesExist = storedIds.includes(movie.id);
+            toast({
+                title: doesExist ? 'Updating Existing Record' : 'Ingesting New Record',
+                description: `Simulating ingestion for movie: ${movie.title} (ID: ${movie.id})`,
+            });
+            addMovieIdToStorage(movie.id);
+        });
     }, 1500);
 
     } catch (error: any) {
