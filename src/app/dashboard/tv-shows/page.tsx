@@ -21,21 +21,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const TMDB_API_KEY = 'tmdb_api_key';
 const LOCAL_TV_DB_KEY = 'cinesync_tv_db';
 
-const getStoredTvShowIds = (): number[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(LOCAL_TV_DB_KEY);
-    return stored ? JSON.parse(stored) : [];
-};
-
-const addTvShowIdToStorage = (id: number) => {
+// Helper to update local storage for dashboard counts
+const updateLocalStorageCount = (key: string, newIds: number[]) => {
     if (typeof window === 'undefined') return;
-    const ids = getStoredTvShowIds();
-    if (!ids.includes(id)) {
-        ids.push(id);
-        localStorage.setItem(LOCAL_TV_DB_KEY, JSON.stringify(ids));
-    }
+    const stored = localStorage.getItem(key);
+    const existingIds = stored ? JSON.parse(stored) : [];
+    const updatedIds = Array.from(new Set([...existingIds, ...newIds]));
+    localStorage.setItem(key, JSON.stringify(updatedIds));
 };
-
 
 export default function TvShowsPage() {
   const { toast } = useToast();
@@ -85,7 +78,7 @@ export default function TvShowsPage() {
         throw new Error(data.status_message || 'Failed to fetch data');
       }
 
-      let finalResults = data;
+      let finalResults: any;
       let showsToProcess: any[] = [];
       
       if (singleId) {
@@ -101,25 +94,35 @@ export default function TvShowsPage() {
 
       toast({
         title: 'Fetch Successful',
-        description: 'Data retrieved from TMDb.',
+        description: `${showsToProcess.length} TV shows retrieved. Now ingesting into database.`,
       });
 
-      setTimeout(() => {
-        const storedIds = getStoredTvShowIds();
-        showsToProcess.forEach((show) => {
-            const doesExist = storedIds.includes(show.id);
-            toast({
-                title: doesExist ? 'Updating Existing Record' : 'Ingesting New Record',
-                description: `Simulating ingestion for TV Show: ${show.name} (ID: ${show.id})`,
-            });
-            addTvShowIdToStorage(show.id);
-        });
-    }, 1500);
+       // Ingest data via API
+      const ingestResponse = await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'tv_shows', data: showsToProcess }),
+      });
+
+      const ingestResult = await ingestResponse.json();
+
+      if (!ingestResponse.ok) {
+        throw new Error(ingestResult.error || 'Failed to ingest data');
+      }
+      
+      toast({
+          title: 'Ingestion Complete',
+          description: ingestResult.message,
+      });
+
+      // Update local storage for dashboard counts
+      const tvShowIds = showsToProcess.map(p => p.id);
+      updateLocalStorageCount(LOCAL_TV_DB_KEY, tvShowIds);
 
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Error Fetching Data',
+        title: 'An Error Occurred',
         description: error.message,
       });
     } finally {
@@ -179,7 +182,7 @@ export default function TvShowsPage() {
       {results && (
         <Card>
             <CardHeader>
-                <CardTitle>Fetched Data</CardTitle>
+                <CardTitle>Fetched Data (Ready for Ingestion)</CardTitle>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-96 w-full">

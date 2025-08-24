@@ -21,21 +21,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 const TMDB_API_KEY = 'tmdb_api_key';
 const LOCAL_PEOPLE_DB_KEY = 'cinesync_people_db';
 
-const getStoredPeopleIds = (): number[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(LOCAL_PEOPLE_DB_KEY);
-    return stored ? JSON.parse(stored) : [];
-};
-
-const addPersonIdToStorage = (id: number) => {
+// Helper to update local storage for dashboard counts
+const updateLocalStorageCount = (key: string, newIds: number[]) => {
     if (typeof window === 'undefined') return;
-    const ids = getStoredPeopleIds();
-    if (!ids.includes(id)) {
-        ids.push(id);
-        localStorage.setItem(LOCAL_PEOPLE_DB_KEY, JSON.stringify(ids));
-    }
+    const stored = localStorage.getItem(key);
+    const existingIds = stored ? JSON.parse(stored) : [];
+    const updatedIds = Array.from(new Set([...existingIds, ...newIds]));
+    localStorage.setItem(key, JSON.stringify(updatedIds));
 };
-
 
 export default function PeoplePage() {
   const { toast } = useToast();
@@ -85,7 +78,7 @@ export default function PeoplePage() {
         throw new Error(data.status_message || 'Failed to fetch data');
       }
 
-      let finalResults = data;
+      let finalResults: any;
       let peopleToProcess: any[] = [];
       
       if (singleId) {
@@ -101,25 +94,35 @@ export default function PeoplePage() {
 
       toast({
         title: 'Fetch Successful',
-        description: 'Data retrieved from TMDb.',
+        description: `${peopleToProcess.length} people retrieved. Now ingesting into database.`,
       });
-      
-      setTimeout(() => {
-        const storedIds = getStoredPeopleIds();
-        peopleToProcess.forEach((person) => {
-            const doesExist = storedIds.includes(person.id);
-            toast({
-                title: doesExist ? 'Updating Existing Record' : 'Ingesting New Record',
-                description: `Simulating ingestion for person: ${person.name} (ID: ${person.id})`,
-            });
-            addPersonIdToStorage(person.id);
-        });
-    }, 1500);
+
+      // Ingest data via API
+      const ingestResponse = await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'people', data: peopleToProcess }),
+      });
+
+      const ingestResult = await ingestResponse.json();
+
+      if (!ingestResponse.ok) {
+        throw new Error(ingestResult.error || 'Failed to ingest data');
+      }
+
+      toast({
+          title: 'Ingestion Complete',
+          description: ingestResult.message,
+      });
+
+      // Update local storage for dashboard counts
+      const peopleIds = peopleToProcess.map(p => p.id);
+      updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, peopleIds);
 
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Error Fetching Data',
+        title: 'An Error Occurred',
         description: error.message,
       });
     } finally {
@@ -176,7 +179,7 @@ export default function PeoplePage() {
       {results && (
         <Card>
             <CardHeader>
-                <CardTitle>Fetched Data</CardTitle>
+                <CardTitle>Fetched Data (Ready for Ingestion)</CardTitle>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-96 w-full">

@@ -22,34 +22,13 @@ const TMDB_API_KEY = 'tmdb_api_key';
 const LOCAL_MOVIE_DB_KEY = 'cinesync_movie_db';
 const LOCAL_PEOPLE_DB_KEY = 'cinesync_people_db';
 
-const getStoredMovieIds = (): number[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(LOCAL_MOVIE_DB_KEY);
-    return stored ? JSON.parse(stored) : [];
-};
-
-const addMovieIdToStorage = (id: number) => {
+// Helper to update local storage for dashboard counts
+const updateLocalStorageCount = (key: string, newIds: number[]) => {
     if (typeof window === 'undefined') return;
-    const ids = getStoredMovieIds();
-    if (!ids.includes(id)) {
-        ids.push(id);
-        localStorage.setItem(LOCAL_MOVIE_DB_KEY, JSON.stringify(ids));
-    }
-};
-
-const getStoredPeopleIds = (): number[] => {
-    if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(LOCAL_PEOPLE_DB_KEY);
-    return stored ? JSON.parse(stored) : [];
-};
-
-const addPersonIdToStorage = (id: number) => {
-    if (typeof window === 'undefined') return;
-    const ids = getStoredPeopleIds();
-    if (!ids.includes(id)) {
-        ids.push(id);
-        localStorage.setItem(LOCAL_PEOPLE_DB_KEY, JSON.stringify(ids));
-    }
+    const stored = localStorage.getItem(key);
+    const existingIds = stored ? JSON.parse(stored) : [];
+    const updatedIds = Array.from(new Set([...existingIds, ...newIds]));
+    localStorage.setItem(key, JSON.stringify(updatedIds));
 };
 
 
@@ -88,7 +67,7 @@ export default function MoviesPage() {
     let url = '';
 
     if (singleId) {
-        url = `${baseUrl}/movie/${singleId}?api_key=${apiKey}&language=en-US`;
+        url = `${baseUrl}/movie/${singleId}?api_key=${apiKey}&language=en-US&append_to_response=credits`;
     } else {
         url = `${baseUrl}/movie/${endpoint}?api_key=${apiKey}&language=en-US&page=1`;
     }
@@ -101,76 +80,61 @@ export default function MoviesPage() {
         throw new Error(data.status_message || 'Failed to fetch data');
       }
       
-      let finalResults = data;
+      let finalResults: any;
       let moviesToProcess: any[] = [];
 
       if (singleId) {
         finalResults = data;
         moviesToProcess.push(data);
       } else if (data.results) {
-        const slicedResults = data.results.slice(0, parseInt(count));
-        finalResults = { ...data, results: slicedResults };
-        moviesToProcess.push(...slicedResults);
+        const moviesWithCredits = await Promise.all(
+          data.results.slice(0, parseInt(count)).map(async (movie: any) => {
+            const creditsUrl = `${baseUrl}/movie/${movie.id}/credits?api_key=${apiKey}`;
+            const creditsResponse = await fetch(creditsUrl);
+            const creditsData = await creditsResponse.json();
+            return { ...movie, credits: creditsData };
+          })
+        );
+        finalResults = { ...data, results: moviesWithCredits };
+        moviesToProcess.push(...moviesWithCredits);
       }
       
       setResults(finalResults);
       
       toast({
         title: 'Fetch Successful',
-        description: 'Data retrieved from TMDb. Now processing records.',
+        description: `${moviesToProcess.length} movies retrieved. Now ingesting into database.`,
       });
 
-      // Process movies and their related people
-      setTimeout(async () => {
-        const storedMovieIds = getStoredMovieIds();
-        const storedPeopleIds = getStoredPeopleIds();
+      // Ingest data via API
+      const ingestResponse = await fetch('/api/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'movies', data: moviesToProcess }),
+      });
 
-        for (const movie of moviesToProcess) {
-            const movieExists = storedMovieIds.includes(movie.id);
-            toast({
-                title: movieExists ? 'Updating Existing Movie' : 'Ingesting New Movie',
-                description: `Processing movie: ${movie.title} (ID: ${movie.id})`,
-            });
-            addMovieIdToStorage(movie.id);
+      const ingestResult = await ingestResponse.json();
 
-            // Fetch credits for the movie
-            const creditsUrl = `${baseUrl}/movie/${movie.id}/credits?api_key=${apiKey}`;
-            try {
-                const creditsResponse = await fetch(creditsUrl);
-                const creditsData = await creditsResponse.json();
-                if (!creditsResponse.ok) {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error Fetching Credits',
-                        description: `Could not fetch credits for movie ID ${movie.id}.`,
-                    });
-                    continue; // Move to the next movie
-                }
+      if (!ingestResponse.ok) {
+        throw new Error(ingestResult.error || 'Failed to ingest data');
+      }
 
-                const peopleToProcess = [...creditsData.cast, ...creditsData.crew];
+      toast({
+          title: 'Ingestion Complete',
+          description: ingestResult.message,
+      });
+      
+      // Update local storage for dashboard counts
+      const movieIds = moviesToProcess.map(m => m.id);
+      const peopleIds = moviesToProcess.flatMap(m => [...(m.credits?.cast ?? []), ...(m.credits?.crew ?? [])]).map(p => p.id);
+      updateLocalStorageCount(LOCAL_MOVIE_DB_KEY, movieIds);
+      updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, peopleIds);
 
-                for (const person of peopleToProcess) {
-                    const personExists = storedPeopleIds.includes(person.id);
-                    toast({
-                        title: personExists ? 'Updating Existing Person' : 'Ingesting New Person',
-                        description: `Processing person: ${person.name} (ID: ${person.id}) for movie "${movie.title}"`,
-                    });
-                    addPersonIdToStorage(person.id);
-                }
-            } catch (error: any) {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Error Processing Credits',
-                    description: error.message,
-                });
-            }
-        }
-    }, 1500);
 
     } catch (error: any) {
       toast({
         variant: 'destructive',
-        title: 'Error Fetching Data',
+        title: 'An Error Occurred',
         description: error.message,
       });
     } finally {
@@ -230,7 +194,7 @@ export default function MoviesPage() {
       {results && (
         <Card>
             <CardHeader>
-                <CardTitle>Fetched Data</CardTitle>
+                <CardTitle>Fetched Data (Ready for Ingestion)</CardTitle>
             </CardHeader>
             <CardContent>
                 <ScrollArea className="h-96 w-full">
