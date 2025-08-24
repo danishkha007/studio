@@ -7,18 +7,13 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, FileText, Settings, Users, Tv, Film, Wand2 } from 'lucide-react';
+import { LayoutDashboard, Settings, Users, Tv, Film } from 'lucide-react';
 
 const menuItems = [
   {
     href: '/dashboard',
     label: 'Dashboard',
     icon: LayoutDashboard,
-  },
-  {
-    href: '/dashboard/api-documentation',
-    label: 'API Docs',
-    icon: FileText,
   },
   {
     href: '/dashboard/movies',
@@ -34,11 +29,6 @@ const menuItems = [
     href: '/dashboard/people',
     label: 'People',
     icon: Users,
-  },
-  {
-    href: '/dashboard/api-configurator',
-    label: 'API Configurator',
-    icon: Wand2,
   },
   {
     href: '/dashboard/settings',
