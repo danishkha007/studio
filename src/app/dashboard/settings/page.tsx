@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Terminal } from 'lucide-react';
 
 const TMDB_API_KEY = 'tmdb_api_key';
 const MYSQL_CONFIG_KEY = 'mysql_config';
@@ -61,7 +63,7 @@ export default function SettingsPage() {
       setIsLoading(false);
       toast({
         title: 'Settings Saved',
-        description: 'Your TMDb API key has been saved successfully.',
+        description: 'Your TMDb API key has been saved to local storage.',
       });
     }, 1000);
   };
@@ -78,7 +80,7 @@ export default function SettingsPage() {
         setIsLoading(false)
         toast({
             title: "Database Settings Saved",
-            description: "Your MySQL connection details have been saved."
+            description: "Your MySQL connection details have been saved to local storage for your reference."
         });
     }, 1000);
   }
@@ -110,7 +112,7 @@ export default function SettingsPage() {
             </CardTitle>
             <CardDescription>
               Enter your The Movie Database (TMDb) API key here. Your key will be
-              stored securely in your browser's local storage.
+              stored securely in your browser's local storage for use in API calls.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -144,15 +146,22 @@ export default function SettingsPage() {
         </form>
       </Card>
       
+       <Alert>
+        <Terminal className="h-4 w-4" />
+        <AlertTitle>Server Configuration Required</AlertTitle>
+        <AlertDescription>
+            To connect to your MySQL database, you must create a <b>.env.local</b> file in the root of your project and populate it with your credentials. The settings saved on this page are for your reference only and are not used by the server.
+        </AlertDescription>
+      </Alert>
+
       <Card>
         <form onSubmit={handleMysqlSubmit}>
           <CardHeader>
             <CardTitle className="font-headline text-xl">
-              MySQL Database Configuration
+              MySQL Database Configuration (Reference)
             </CardTitle>
             <CardDescription>
-              Enter your MySQL connection details. These will be stored in your browser's local storage.
-              This is for simulation purposes only and not a real database connection.
+              Enter your MySQL connection details here for your own reference. These are saved in your browser and are not used for the actual database connection.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
@@ -185,7 +194,7 @@ export default function SettingsPage() {
           <CardFooter className="flex justify-end">
             <Button type="submit" disabled={isLoading || !Object.values(mysqlConfig).some(v => v)}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save DB Settings
+              Save for Reference
             </Button>
           </CardFooter>
         </form>

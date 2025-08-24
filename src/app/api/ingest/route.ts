@@ -3,14 +3,16 @@ import { NextResponse } from 'next/server';
 import mysql from 'mysql2/promise';
 
 // --- IMPORTANT ---
-// Replace these with your actual database credentials
-// It's highly recommended to use environment variables for this
+// Database connection details are read from environment variables
+// for security. Create a `.env.local` file in your project root
+// and add your credentials there.
+// See `.env.local.example` for a template.
 const dbConfig = {
-    host: process.env.MYSQL_HOST || 'localhost',
-    port: Number(process.env.MYSQL_PORT) || 3306,
-    user: process.env.MYSQL_USER || 'root',
-    password: process.env.MYSQL_PASSWORD || 'password',
-    database: process.env.MYSQL_DATABASE || 'tmdb_movies_db'
+    host: process.env.MYSQL_HOST,
+    port: Number(process.env.MYSQL_PORT),
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
+    database: process.env.MYSQL_DATABASE
 };
 
 async function safeQuery(connection: mysql.Connection, sql: string, values: any[]) {
@@ -27,6 +29,10 @@ async function safeQuery(connection: mysql.Connection, sql: string, values: any[
 export async function POST(request: Request) {
     let connection: mysql.Connection | null = null;
     try {
+        if (!dbConfig.host || !dbConfig.user || !dbConfig.database) {
+            throw new Error("Database credentials are not configured. Please check your environment variables.");
+        }
+
         const { type, data } = await request.json();
         
         connection = await mysql.createConnection(dbConfig);
@@ -51,7 +57,8 @@ export async function POST(request: Request) {
                     `;
                     const personValues = [person.id, person.name, person.gender, person.popularity, person.profile_path, person.adult, person.known_for_department || person.department];
                     const result: any = await safeQuery(connection, personSql, personValues);
-                    if (result?.affectedRows > 0) {
+                    if (result?.affectedRows) {
+                       // MySQL returns 1 for INSERT, 2 for UPDATE on ON DUPLICATE KEY UPDATE
                        if (result.affectedRows === 1) insertedCount++;
                        if (result.affectedRows === 2) updatedCount++;
                     }
@@ -73,7 +80,7 @@ export async function POST(request: Request) {
                 `;
                 const movieValues = [movie.id, movie.title, movie.overview, movie.release_date, movie.popularity, movie.vote_average, movie.vote_count, movie.poster_path, movie.backdrop_path, movie.adult, movie.original_language];
                 const movieResult: any = await safeQuery(connection, movieSql, movieValues);
-                 if (movieResult?.affectedRows > 0) {
+                 if (movieResult?.affectedRows) {
                     if (movieResult.affectedRows === 1) insertedCount++;
                     if (movieResult.affectedRows === 2) updatedCount++;
                 }
