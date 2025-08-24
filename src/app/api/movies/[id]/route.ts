@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
@@ -23,7 +24,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
             SELECT 
                 p.id, 
                 p.name, 
-                mc.character_name
+                mc.character_name,
+                p.profile_path
             FROM movie_cast mc
             JOIN people p ON mc.person_id = p.id
             WHERE mc.movie_id = ?
@@ -37,7 +39,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
                 p.id, 
                 p.name, 
                 mc.job,
-                mc.department
+                mc.department,
+                p.profile_path
             FROM movie_crew mc
             JOIN people p ON mc.person_id = p.id
             WHERE mc.movie_id = ?
@@ -46,10 +49,27 @@ export async function GET(request: Request, { params }: { params: { id: string }
         `;
         const crew = await query(crewQuery, [movieId]);
         
+        const videosQuery = `
+            SELECT * FROM videos WHERE entity_id = ? AND entity_type = 'movie' ORDER BY published_at DESC;
+        `;
+        const videos = await query(videosQuery, [movieId]);
+
+        const imagesQuery = `
+            SELECT * FROM images WHERE entity_id = ? AND entity_type = 'movie' ORDER BY vote_average DESC;
+        `;
+        const imagesResult: any = await query(imagesQuery, [movieId]);
+        
+        const images = {
+            backdrops: imagesResult.filter((img: any) => img.image_type === 'backdrop'),
+            posters: imagesResult.filter((img: any) => img.image_type === 'poster'),
+        };
+
         const response = {
             ...movie,
             cast,
-            crew
+            crew,
+            videos,
+            images
         };
 
         return NextResponse.json({ data: response });
