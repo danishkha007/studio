@@ -273,7 +273,7 @@ export default function MoviesPage() {
                                     <span>{new Date(movie.release_date).getFullYear()}</span>
                                      <Badge variant="outline" className="flex items-center gap-1">
                                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400"/>
-                                        {movie.vote_average.toFixed(1)}
+                                        {movie.vote_average}
                                     </Badge>
                                 </div>
                             </CardHeader>
