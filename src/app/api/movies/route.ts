@@ -1,8 +1,15 @@
+
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+const PAGE_SIZE = 40;
+
 export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const page = parseInt(searchParams.get('page') || '1', 10);
+        const offset = (page - 1) * PAGE_SIZE;
+
         const movies = await query(`
             SELECT 
                 id, 
@@ -13,8 +20,9 @@ export async function GET(request: Request) {
                 vote_average 
             FROM movies 
             ORDER BY popularity DESC 
-            LIMIT 20
-        `);
+            LIMIT ?
+            OFFSET ?
+        `, [PAGE_SIZE, offset]);
 
         return NextResponse.json({ data: movies });
 
@@ -23,3 +31,5 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Failed to fetch movies.', details: error.message }, { status: 500 });
     }
 }
+
+    

@@ -45,6 +45,40 @@ export default function MoviesPage() {
   const [isLoadingMovies, setIsLoadingMovies] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [isMounted, setIsMounted] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const [hasMore, setHasMore] = React.useState(true);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+
+
+  const fetchMovies = async (pageNum: number) => {
+    if(pageNum === 1) {
+        setIsLoadingMovies(true);
+    } else {
+        setIsLoadingMore(true);
+    }
+    try {
+        const response = await fetch(`/api/movies?page=${pageNum}`);
+        const data = await response.json();
+        if(response.ok) {
+            setMovies(prev => pageNum === 1 ? data.data : [...prev, ...data.data]);
+            setHasMore(data.data.length > 0);
+        } else {
+            throw new Error(data.error || "Failed to fetch movies from DB");
+        }
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Could not load movies',
+            description: error.message,
+        });
+    } finally {
+        if(pageNum === 1) {
+            setIsLoadingMovies(false);
+        } else {
+            setIsLoadingMore(false);
+        }
+    }
+  };
 
   React.useEffect(() => {
     setIsMounted(true);
@@ -52,29 +86,14 @@ export default function MoviesPage() {
     if(storedKey) {
         setApiKey(storedKey);
     }
-
-    const fetchMovies = async () => {
-        setIsLoadingMovies(true);
-        try {
-            const response = await fetch('/api/movies');
-            const data = await response.json();
-            if(response.ok) {
-                setMovies(data.data);
-            } else {
-                throw new Error(data.error || "Failed to fetch movies from DB");
-            }
-        } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Could not load movies',
-                description: error.message,
-            });
-        } finally {
-            setIsLoadingMovies(false);
-        }
-    };
-    fetchMovies();
+    fetchMovies(1);
   }, [toast]);
+  
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchMovies(nextPage);
+  }
 
   const handleFetch = async () => {
     if (!apiKey) {
@@ -153,11 +172,8 @@ export default function MoviesPage() {
       updateLocalStorageCount(LOCAL_PEOPLE_DB_KEY, Array.from(new Set(peopleIds)));
       
       // Refresh the movie list from our DB
-      const freshMoviesResponse = await fetch('/api/movies');
-      const freshMoviesData = await freshMoviesResponse.json();
-      if(freshMoviesResponse.ok) {
-          setMovies(freshMoviesData.data);
-      }
+      setPage(1);
+      fetchMovies(1);
 
 
     } catch (error: any) {
@@ -238,21 +254,22 @@ export default function MoviesPage() {
                 />
             </div>
             {isLoadingMovies ? (
-                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {Array.from({ length: 10 }).map((_, i) => (
+                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+                    {Array.from({ length: 16 }).map((_, i) => (
                         <Card key={i}>
                             <CardContent className="p-0">
                                 <Skeleton className="h-auto w-full aspect-[2/3]" />
                             </CardContent>
-                            <CardHeader className="p-4">
-                               <Skeleton className="h-5 w-4/5 mb-2" />
-                               <Skeleton className="h-4 w-1/2" />
+                            <CardHeader className="p-3">
+                               <Skeleton className="h-4 w-4/5 mb-1" />
+                               <Skeleton className="h-3 w-1/2" />
                             </CardHeader>
                         </Card>
                     ))}
                  </div>
             ) : filteredMovies.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                <>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
                     {filteredMovies.map(movie => (
                         <Card key={movie.id} className="overflow-hidden">
                             <CardContent className="p-0">
@@ -268,10 +285,10 @@ export default function MoviesPage() {
                                 </Link>
                             </CardContent>
                             <CardHeader className="p-3">
-                                <CardTitle className="font-headline text-base line-clamp-1">{movie.title}</CardTitle>
+                                <CardTitle className="font-headline text-sm line-clamp-1">{movie.title}</CardTitle>
                                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                                     <span>{new Date(movie.release_date).getFullYear()}</span>
-                                     <Badge variant="outline" className="flex items-center gap-1">
+                                     <Badge variant="outline" className="flex items-center gap-1 p-1">
                                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400"/>
                                         {movie.vote_average}
                                     </Badge>
@@ -280,6 +297,15 @@ export default function MoviesPage() {
                         </Card>
                     ))}
                 </div>
+                {hasMore && (
+                    <div className="mt-6 flex justify-center">
+                        <Button onClick={handleLoadMore} disabled={isLoadingMore}>
+                             {isLoadingMore ? <Loader2 className="mr-2 animate-spin" /> : null}
+                            Load More
+                        </Button>
+                    </div>
+                )}
+                </>
             ) : (
                 <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm py-12">
                     <div className="flex flex-col items-center gap-2 text-center text-muted-foreground">

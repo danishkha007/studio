@@ -43,7 +43,7 @@ export default function DashboardPage() {
           <CardContent>
             {loading ? <Skeleton className="h-7 w-24" /> : <div className="text-2xl font-bold">{value.toLocaleString() ?? 0}</div>}
             <p className="text-xs text-muted-foreground">
-              Total records in local storage
+              Total records in local db
             </p>
           </CardContent>
         </Card>
@@ -75,3 +75,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
