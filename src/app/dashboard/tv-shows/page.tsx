@@ -289,7 +289,7 @@ export default function TvShowsPage() {
                                         <span>{new Date(show.first_air_date).getFullYear()}</span>
                                         <Badge variant="outline" className="flex items-center gap-1 p-1">
                                             <Star className="h-3 w-3 fill-yellow-400 text-yellow-400"/>
-                                            {show.vote_average.toFixed(1)}
+                                            {show.vote_average}
                                         </Badge>
                                     </div>
                                 </CardHeader>
@@ -320,5 +320,3 @@ export default function TvShowsPage() {
     </div>
   );
 }
-
-    
