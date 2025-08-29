@@ -93,7 +93,7 @@ export default function TvShowsPage() {
     });
 
     const baseUrl = 'https://api.themoviedb.org/3';
-    const appendToResponse = 'credits,videos,images';
+    const appendToResponse = 'credits,videos,images,keywords';
     let url = '';
 
     if (singleId) {
@@ -295,3 +295,5 @@ export default function TvShowsPage() {
     </div>
   );
 }
+
+    

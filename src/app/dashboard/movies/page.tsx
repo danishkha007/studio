@@ -93,7 +93,7 @@ export default function MoviesPage() {
     });
 
     const baseUrl = 'https://api.themoviedb.org/3';
-    const appendToResponse = 'credits,videos,images';
+    const appendToResponse = 'credits,videos,images,keywords';
     let url = '';
 
     if (singleId) {
@@ -273,7 +273,7 @@ export default function MoviesPage() {
                                     <span>{new Date(movie.release_date).getFullYear()}</span>
                                      <Badge variant="outline" className="flex items-center gap-1">
                                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400"/>
-                                        {movie.vote_average}
+                                        {movie.vote_average.toFixed(1)}
                                     </Badge>
                                 </div>
                             </CardHeader>
@@ -297,3 +297,5 @@ export default function MoviesPage() {
     </div>
   );
 }
+
+    

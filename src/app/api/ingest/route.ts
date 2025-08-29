@@ -84,6 +84,32 @@ async function ingestImages(connection: mysql.Connection, images: any, entityId:
     }
 }
 
+async function ingestGenres(connection: mysql.Connection, genres: any[], entityId: number, entityType: 'movie' | 'tv') {
+    if (!genres || genres.length === 0) return;
+    for (const genre of genres) {
+        const genreSql = `INSERT INTO genres (id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name);`;
+        await safeQuery(connection, genreSql, [genre.id, genre.name]);
+        
+        const linkTable = entityType === 'movie' ? 'movie_genres' : 'tv_show_genres';
+        const linkColumn = entityType === 'movie' ? 'movie_id' : 'tv_show_id';
+        const linkSql = `INSERT IGNORE INTO ${linkTable} (${linkColumn}, genre_id) VALUES (?, ?);`;
+        await safeQuery(connection, linkSql, [entityId, genre.id]);
+    }
+}
+
+async function ingestKeywords(connection: mysql.Connection, keywords: any[], entityId: number, entityType: 'movie' | 'tv') {
+    if (!keywords || keywords.length === 0) return;
+    for (const keyword of keywords) {
+        const keywordSql = `INSERT INTO keywords (id, name) VALUES (?, ?) ON DUPLICATE KEY UPDATE name=VALUES(name);`;
+        await safeQuery(connection, keywordSql, [keyword.id, keyword.name]);
+
+        const linkTable = entityType === 'movie' ? 'movie_keywords' : 'tv_show_keywords';
+        const linkColumn = entityType === 'movie' ? 'movie_id' : 'tv_show_id';
+        const linkSql = `INSERT IGNORE INTO ${linkTable} (${linkColumn}, keyword_id) VALUES (?, ?);`;
+        await safeQuery(connection, linkSql, [entityId, keyword.id]);
+    }
+}
+
 
 export async function POST(request: Request) {
     let connection: mysql.Connection | null = null;
@@ -157,9 +183,11 @@ export async function POST(request: Request) {
                     await safeQuery(connection, crewSql, [movie.id, crewMember.id, crewMember.job, crewMember.department]);
                 }
 
-                // 4. Ingest Videos & Images
+                // 4. Ingest Videos, Images, Genres, Keywords
                 await ingestVideos(connection, movie.videos?.results, movie.id, 'movie');
                 await ingestImages(connection, movie.images, movie.id, 'movie');
+                await ingestGenres(connection, movie.genres, movie.id, 'movie');
+                await ingestKeywords(connection, movie.keywords?.keywords, movie.id, 'movie');
             }
         } else if (type === 'tv_shows') {
             for (const show of data) {
@@ -219,9 +247,11 @@ export async function POST(request: Request) {
                     await safeQuery(connection, crewSql, [show.id, crewMember.id, crewMember.job, crewMember.department]);
                 }
 
-                // 4. Ingest Videos & Images
+                // 4. Ingest Videos, Images, Genres, Keywords
                 await ingestVideos(connection, show.videos?.results, show.id, 'tv');
                 await ingestImages(connection, show.images, show.id, 'tv');
+                await ingestGenres(connection, show.genres, show.id, 'tv');
+                await ingestKeywords(connection, show.keywords?.results, show.id, 'tv');
             }
         } else if (type === 'people') {
              const peopleResult = await ingestPeople(connection, data);
@@ -248,3 +278,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message || 'An internal server error occurred.' }, { status: 500 });
     }
 }
+
+    
