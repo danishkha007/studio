@@ -60,7 +60,15 @@ async function ingestVideos(connection: mysql.Connection, videos: any[], entityI
         const videoSql = `
             INSERT INTO videos (id, entity_type, entity_id, name, key_id, site, size, type, official, published_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE name=VALUES(name), site=VALUES(site), size=VALUES(size), type=VALUES(type), official=VALUES(official), published_at=VALUES(published_at);
+            ON DUPLICATE KEY UPDATE 
+                name=VALUES(name), 
+                site=VALUES(site), 
+                size=VALUES(size), 
+                type=VALUES(type), 
+                official=VALUES(official), 
+                published_at=VALUES(published_at),
+                entity_type=VALUES(entity_type),
+                entity_id=VALUES(entity_id);
         `;
         const videoValues = [video.id, entityType, entityId, video.name, video.key, video.site, video.size, video.type, video.official, video.published_at];
         await safeQuery(connection, videoSql, videoValues);
@@ -74,10 +82,17 @@ async function ingestImages(connection: mysql.Connection, images: any, entityId:
 
     for (const image of allImages) {
         const imageType = image.aspect_ratio > 1 ? 'backdrop' : 'poster';
+        // Using file_path as the unique identifier for the image itself.
+        // A composite key on (entity_id, entity_type, file_path) should exist in the DB.
         const imageSql = `
             INSERT INTO images (entity_type, entity_id, image_type, file_path, aspect_ratio, height, width, language_code, vote_average, vote_count)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE vote_average=VALUES(vote_average), vote_count=VALUES(vote_count);
+            ON DUPLICATE KEY UPDATE 
+                vote_average=VALUES(vote_average), 
+                vote_count=VALUES(vote_count),
+                aspect_ratio=VALUES(aspect_ratio),
+                height=VALUES(height),
+                width=VALUES(width);
         `;
         const imageValues = [entityType, entityId, imageType, image.file_path, image.aspect_ratio, image.height, image.width, image.iso_639_1, image.vote_average, image.vote_count];
         await safeQuery(connection, imageSql, imageValues);
@@ -278,5 +293,3 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message || 'An internal server error occurred.' }, { status: 500 });
     }
 }
-
-    
